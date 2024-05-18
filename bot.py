@@ -15,6 +15,8 @@ from psycopg2 import Error
 load_dotenv()
 TOKEN = os.getenv('TOKEN')
 
+PATH_TO_LOGFILE = os.getenv('PATH_TO_LOGFILE')
+PATH_TO_TEMPFILE = os.getenv('PATH_TO_TEMPFILE')
 
 RM_HOST = os.getenv('RM_HOST')
 RM_PORT = os.getenv('RM_PORT')
@@ -205,14 +207,13 @@ def confirm_save_email(update: Update, context):
 
 def findPhoneNumbersCommand(update: Update, context):
     update.message.reply_text('Введите текст для поиска телефонных номеров: ')
+    return 'findPhoneNumbers'
 
-    return 'find_phone_number'
 
-
-def find_phone_number(update: Update, context):
+def findPhoneNumbers(update: Update, context):
     user_input = update.message.text
 
-    phoneNumRegex = re.compile(r'\+?\d{1}[-.\s]?\(?\d{3}\)?[-.\s]?\d{3}[-.\s]?\d{2}[-.\s]?\d{2}')
+    phoneNumRegex = re.compile(r'\+?[78][- ]?(?:\(\d{3}\)|\d{3})[- ]?\d{3}[- ]?\d{2}[- ]?\d{2}')
 
     phoneNumberList = phoneNumRegex.findall(user_input)
 
@@ -226,9 +227,8 @@ def find_phone_number(update: Update, context):
     
     context.user_data['phone_list'] = phoneNumberList 
     update.message.reply_text(phoneNumbers)
-    update.message.reply_text('Хотите сохранить найденные номера в БД?[Да|нет]: ')
+    update.message.reply_text('Хотите сохранить найденные номера в БД?[да|нет]: ')
     return 'confirm_save_number'
-
 
 def confirm_save_number(update: Update, context):
     user_input = update.message.text.lower()
@@ -303,28 +303,23 @@ def get_phone_numbers(update: Update, command):
     else:
         update.message.reply_text("Ошибка подключения к базе данных")
 
- 
 
-def get_repl_logs (update: Update, context):
-    logging.info('Логи репликации')
-    update.message.reply_text("Поиск логов")
-   # result= ssh_connect(update, "cat /var/log/postgresql/postgresql-14-main.log | tail -n 15")
-    result= ssh_connect(update, 'cat /var/log/postgresql/postgresql-14-main.log | grep "replication"') 
-    if result:
-        result_lines = result.split('n')
+def get_repl_logs(update: Update, context):
+    connection = psycopg2.connect( host=DB_HOST, port=DB_PORT, database=DB_DATABASE, user=DB_USER, password=DB_PASSWORD )
+    cursor = connection.cursor()
+    
+    data = cursor.execute("SELECT pg_read_file(pg_current_logfile());")
+    data = cursor.fetchall()
+    data = str(data).replace('\\n', '\n').replace('\\t', '\t')[2:-1]
+    answer = 'Логи репликации:\n'
 
-        chunk = ''
-        for line in result_lines:
-            if len(chunk + line) <= 4000:  # Ограничение по размеру сообщения
-                chunk += line + 'n'
-            else:
-                update.message.reply_text(chunk)
-                chunk = line + 'n'
-        # Отправляем оставшийся кусочек
-        if chunk:
-            update.message.reply_text(chunk)
-            
-    return ConversationHandler.END
+    for str1 in data.split('\n'):
+        if DB_REPL_USER in str1:
+            answer += str1 + '\n'
+    if len(answer) == 17:
+        answer = 'События репликации не обнаружены'
+    for x in range(0, len(answer), 4096):
+        update.message.reply_text(answer[x:x+4096])
 
 
 def helpCommand(update: Update, context):
@@ -333,7 +328,7 @@ def helpCommand(update: Update, context):
         "/help - Список команд и их описание\n"
         "/verify_password - Проверка сложности пароля\n"
         "/find_email - Найти и сохранить email адреса\n"
-        "/find_phone_number - Найти и сохранить телефонные номера\n"
+        "/find_phone_numbers - Найти и сохранить телефонные номера\n"
         "/get_release - Информация о версии системы\n"
         "/get_uname - Информация о системе\n"
         "/get_uptime - Время работы системы\n"
@@ -523,7 +518,7 @@ def main():
     convHandlerFindPhoneNumbers = ConversationHandler(
         entry_points=[CommandHandler('find_phone_number', findPhoneNumbersCommand)],
         states={
-            'find_phone_number': [MessageHandler(Filters.text & ~Filters.command, find_phone_number)],
+            'find_phone_number': [MessageHandler(Filters.text & ~Filters.command, findPhoneNumbers)],
             'confirm_save_number': [MessageHandler(Filters.text & ~Filters.command, confirm_save_number)]
         },
         fallbacks=[]
