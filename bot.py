@@ -154,13 +154,22 @@ def db_connect(update: Update):
         return None, None
 
 
+
+
+
+
+
+
+
+
+
 def find_emailCommand(update: Update, context):
     update.message.reply_text('Введите текст для поиска Email адресов: ')
     return 'find_email'
 
 def find_email(update: Update, context):
     user_input = update.message.text
-    emailRegex = re.compile(r'\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Z|a-z]{2,}\b')
+    emailRegex = re.compile(r'[\w\.-]+@[\w\.-]+')
     emailList = emailRegex.findall(user_input)
 
     if not emailList:
@@ -205,15 +214,17 @@ def confirm_save_email(update: Update, context):
     return ConversationHandler.END
 
 
+
 def findPhoneNumbersCommand(update: Update, context):
     update.message.reply_text('Введите текст для поиска телефонных номеров: ')
+
     return 'findPhoneNumbers'
 
 
 def findPhoneNumbers(update: Update, context):
     user_input = update.message.text
 
-    phoneNumRegex = re.compile(r'\+?[78][- ]?(?:\(\d{3}\)|\d{3})[- ]?\d{3}[- ]?\d{2}[- ]?\d{2}')
+    phoneNumRegex = re.compile(r'\+?\d{1}[-.\s]?\(?\d{3}\)?[-.\s]?\d{3}[-.\s]?\d{2}[-.\s]?\d{2}')
 
     phoneNumberList = phoneNumRegex.findall(user_input)
 
@@ -227,7 +238,7 @@ def findPhoneNumbers(update: Update, context):
     
     context.user_data['phone_list'] = phoneNumberList 
     update.message.reply_text(phoneNumbers)
-    update.message.reply_text('Хотите сохранить найденные номера в БД?[да|нет]: ')
+    update.message.reply_text('Хотите сохранить найденные номера в БД?[Да|нет]: ')
     return 'confirm_save_number'
 
 def confirm_save_number(update: Update, context):
@@ -282,6 +293,8 @@ def get_emails(update: Update, command):
     return None
 
 
+
+
 def get_phone_numbers(update: Update, command):
     connection, cursor = db_connect(update)
 
@@ -304,6 +317,7 @@ def get_phone_numbers(update: Update, command):
         update.message.reply_text("Ошибка подключения к базе данных")
 
 
+
 def get_repl_logs(update: Update, context):
     connection = psycopg2.connect( host=DB_HOST, port=DB_PORT, database=DB_DATABASE, user=DB_USER, password=DB_PASSWORD )
     cursor = connection.cursor()
@@ -323,30 +337,7 @@ def get_repl_logs(update: Update, context):
 
 
 def helpCommand(update: Update, context):
-    help_text = (
-        "/start - Начать взаимодействие с ботом\n"
-        "/help - Список команд и их описание\n"
-        "/verify_password - Проверка сложности пароля\n"
-        "/find_email - Найти и сохранить email адреса\n"
-        "/find_phone_numbers - Найти и сохранить телефонные номера\n"
-        "/get_release - Информация о версии системы\n"
-        "/get_uname - Информация о системе\n"
-        "/get_uptime - Время работы системы\n"
-        "/get_df - Состояние файловой системы\n"
-        "/get_free - Состояние оперативной памяти\n"
-        "/get_mpstat - Производительность системы\n"
-        "/get_w - Информация о работающих пользователях\n"
-        "/get_auths - Последние 10 входов в систему\n"
-        "/get_critical - Последние 5 критических событий\n"
-        "/get_ps - Информация о запущенных процессах\n"
-        "/get_ss - Информация об используемых портах\n"
-        "/get_apt_list - Информация об установленных пакетах\n"
-        "/get_services - Информация о запущенных сервисах\n"
-        "/get_repl_logs - Логи репликации\n"
-        "/get_emails - Получить сохраненные email адреса\n"
-        "/get_phone_numbers - Получить сохраненные номера телефонов\n"
-    )
-    update.message.reply_text(help_text)
+    update.message.reply_text('Help!  /checkPassword /findEmails  /findPhoneNumbers /get_release /get_uname /get_uptime /get_df /get_free /get_mpstat /get_w /get_auths /get_critical /get_ps /get_ss /get_apt_list /get_services  /get_repl_logs')
 
 
 def get_release(update: Update, context):
@@ -446,6 +437,7 @@ def get_ps(update: Update, context):
     return ConversationHandler.END
 
 
+
 def get_ss(update: Update, context):
     update.message.reply_text(f'Сбор информации об используемых портах.')
     result = ssh_connect(update, "ss -tuln")
@@ -480,6 +472,8 @@ def get_apt_list(update: Update, context):
         update.message.reply_text(chunk)
     return ConversationHandler.END
 
+
+ 
 def FindServiceCommand(update: Update, context):
     update.message.reply_text('Название сервиса: ')
     return 'FindService'
@@ -494,21 +488,22 @@ def FindService(update: Update, context):
 def get_services(update: Update, context):
     update.message.reply_text('Сбор информации о запущенных процессах.')
     
-    result = ssh_connect(update, "systemctl list-units --type=service --state=running")
+    result = ssh_connect(update, "systemctl list-units --type=service --all")
     if result:
-        result_lines = result.split('\n')
+        result_lines = result.split('n')
         chunk = ''
         for line in result_lines:
             if len(chunk + line) <= 4000:  # Ограничение по размеру сообщения
-                chunk += line + '\n'
+                chunk += line + 'n'
             else:
                 update.message.reply_text(chunk)
-                chunk = line + '\n'
+                chunk = line + 'n'
         # Отправляем оставшийся кусочек
         if chunk:
             update.message.reply_text(chunk)
-    
+            
     return ConversationHandler.END
+
 
 def main():
     updater = Updater(TOKEN, use_context=True)
@@ -516,9 +511,9 @@ def main():
     dp = updater.dispatcher
 
     convHandlerFindPhoneNumbers = ConversationHandler(
-        entry_points=[CommandHandler('find_phone_number', findPhoneNumbersCommand)],
+        entry_points=[CommandHandler('findPhoneNumbers', findPhoneNumbersCommand)],
         states={
-            'find_phone_number': [MessageHandler(Filters.text & ~Filters.command, findPhoneNumbers)],
+            'findPhoneNumbers': [MessageHandler(Filters.text & ~Filters.command, findPhoneNumbers)],
             'confirm_save_number': [MessageHandler(Filters.text & ~Filters.command, confirm_save_number)]
         },
         fallbacks=[]
@@ -549,13 +544,15 @@ def main():
         fallbacks=[]
     )
 
+
+
     dp.add_handler(CommandHandler("start", start))
     dp.add_handler(CommandHandler("help", helpCommand))
     dp.add_handler(convHandlerFindPhoneNumbers)
     dp.add_handler(convHandlerFindEmail)
     dp.add_handler(convHandlerVerifyPassword)
     dp.add_handler(convHandlerFindService)
-
+        
     dp.add_handler(MessageHandler(Filters.text & ~Filters.command, echo))
     dp.add_handler(CommandHandler("get_release", get_release))
     dp.add_handler(CommandHandler("get_uname", get_uname))
@@ -575,6 +572,7 @@ def main():
 
     dp.add_handler(CommandHandler("get_emails", get_emails))
     dp.add_handler(CommandHandler("get_phone_numbers", get_phone_numbers))
+
 
     updater.start_polling()
 
